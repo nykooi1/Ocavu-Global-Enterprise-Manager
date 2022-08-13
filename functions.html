@@ -1,0 +1,721 @@
+<!DOCTYPE html><html>
+
+<head>
+	<!-- API IMPORTS -->
+	<script type="text/javascript" src="https://www.gstatic.com/charts/loader.js"></script>
+</head>
+
+<body>
+<!-- functions.html -->
+<style>
+
+#vWalletTrayDiscoverPage {
+	width:330px;
+}
+
+#vGlobe{
+	overflow:hidden;
+}
+
+.close {
+  color: #aaaaaa;
+  font-size: 20px;
+  font-weight: bold;
+  position:absolute;
+  top:10px;
+  right:10px;
+}
+
+.close:hover,
+.close:focus {
+  color: #000;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.key,.value{
+  width:100%;
+  box-sizing: border-box;
+  padding:5px;
+  font-size: 16px;
+}
+
+.vCol {
+  float: left;
+  height: 100%;
+  padding: 5px;
+}
+
+.vCol1,.vCol2{
+  width: calc(40% - 10px);
+}
+
+.vCol3{
+  cursor: pointer;
+  display: table;
+  padding-top:10px;
+  color: red;
+  width: calc(20% - 10px);
+}
+
+/* Clear floats after the columns */
+.vRow:after {
+    content: "";
+    display: table;
+    clear: both;
+}
+
+.vSaveButton, .vAddButton{
+  margin:5px;
+  padding: 5px 30px;
+  border: none;
+  cursor: pointer;
+  font-size: 16px;
+  border-radius: 8px;
+  background-color: #B3A7FF;
+}
+
+#json-content input{
+	background: transparent;
+	border: 1px solid white;
+	color: white;
+}
+
+</style>
+
+
+<!-- Org Editor container (within the accordion) -->
+<script id="vConfigEditBlock" type="text/template">
+<div id="vConfigEditContainer">
+	<div id="json-content">[v/editor]</div>
+	<button class="vSaveButton" onclick="vSaveJSONData();">Save</button>
+	<button class="vAddButton" onclick="vAddRow();">Add</button>
+</div>
+</script>
+
+<!-- Hamburger top right -->
+<script id="vHamburgerBlock" type="text/template">
+	<div onclick="vOrgConfig();">Org Edit Config</div>
+</script>
+
+<!-- Org Selector (on the front end this is a select tag) -->
+<script id="vSelectOrgBlock" type="text/template">
+	[v/options]
+</script>
+
+<!-- Google Charts Container -->
+<script id="vChartsBlock" type="text/template">
+	<div class="row">
+        	<div class="col-md">
+			<div id="dauChart"></div>
+		</div>
+		<div class="col-md">
+			<div id="viewsChart"></div>
+		</div>
+	</div>
+</script>
+
+<!-- Globe.gl Container -->
+<script id="vGlobeBlock" type="text/template">
+	<div id="vGlobe"></div>
+</script>
+
+<script>
+
+//---- config edit block ----
+
+function init_vConfigEditBlock(vThis) {
+	vGetJSONData(currentOrg);
+}
+
+function update_vConfigEditBlock(vThis) {}
+
+//---- hamburger block ----
+
+function init_vHamburgerBlock(vThis) {}
+
+function update_vHamburgerBlock(vThis) {}
+
+//---- select org block ----
+
+function init_vSelectOrgBlock(vThis){
+	vPopulateDropdown();
+	orgChangeListener();
+}
+
+function update_vSelectOrgBlock(vThis){}
+
+//---- google charts block ----
+
+function init_vChartsBlock(vThis){
+	window.vGwait = setInterval(function() { if (window.vGready) { clearInterval(window.vGwait);
+
+		getChartData();
+
+	} }, 200);
+};
+
+function update_vChartsBlock(vThis){};
+
+// globe block
+
+function init_vGlobeBlock(vThis){
+	getGlobeData();
+};
+
+function update_vChartsBlock(vThis){};
+
+//populates the accordion with the org editor
+
+function vOrgConfig(){
+	//close the hamburger	
+	document.getElementById("hamburgerOptions").style.maxHeight = "0px";
+        
+	//inject html into the accordion
+	vGetJSONData(currentOrg);
+
+	//open the accordion
+        document.getElementById("vAccordion").classList.remove("vClosed");
+}
+
+//populates the org selector 
+
+function vPopulateDropdown(){
+
+	//actual names within the db
+	var orgs = [];
+	orgs["52journeys"] = "52journeys.com";
+	orgs["cougsnftdev"] = "cougsnft.com";
+	orgs["cougsnft"] = "cougsrise.com"
+	orgs["chalice"] = "chalicemetaverse.com";
+	orgs["cryptopia"] = "cryptopiaslc.xyz";
+	//for now hard code the ocavu.live, ocavu.us, ocavu.info
+	
+	//get the orgs
+	vDo("type", { "type" : "org" }, function(response) {
+
+		//loop through the ids (org name)
+		//for right now manually add the .us, .info, .live to ocavu
+
+		/*
+		for(element of response){
+			try{
+				//checks if chief within this org
+				if(element.chiefs[vG("uid")]){
+					
+				}	
+			}
+			catch {
+			}
+		}*/
+
+		var htmlString = "";
+
+		for(i = 0; i < response.length; i++){
+			if(response[i]["id"] == "ocavu"){
+				continue;
+			}
+			htmlString += "<option value='" + orgs[response[i]["id"]]  + "'>" + orgs[response[i]["id"]] + "</option>";
+		}
+
+		htmlString += "<option value='ocavu.live' selected>ocavu.live</option>";
+		htmlString += "<option value='ocavu.us'>ocavu.us</option>";
+		htmlString += "<option value='ocavu.info'>ocavu.info</option>";
+		htmlString += "<option value='ocavu.net'>ocavu.space</option>";
+		htmlString += "<option value='ocavu.live'>ocavu.live</option>";
+
+		//add the orgs to the dropdown
+        	vHTML("inputOrg", "vSelectOrgBlock", { "options":htmlString } );
+	} );
+
+}
+
+//track the current org
+var currentOrg = "ocavu.live";
+
+//listens for changes to the dropdown
+function orgChangeListener(){
+	jQuery("#inputOrg").change(function () {
+		currentOrg = document.getElementById("inputOrg").value; //update the current org
+		vGetJSONData(currentOrg);
+		getGlobeData();
+		getChartData();
+	});
+}
+
+//************************* ORG EDITOR FUNCTIONS ***************************
+
+function vGetJSONData(filename){
+	jQuery.post("https://www.ocavu.net/lu/org/getJson.php",
+	{
+		file: filename,
+	},
+	function(data, status){
+
+		console.log("NK DATA");
+		console.log(data);
+
+		//if there is no data
+		if(data == ""){
+			vHTML("vMainAccordion", "vConfigEditBlock", { "editor":"<div>No File for Org</div>" });
+		}
+
+		var jsonObject = JSON.parse(data);
+		var jsonDataHTML = "";
+
+		console.log("DEBUG");
+		console.log(jsonObject);
+
+		// go through json object
+		for (const [key, value] of Object.entries(jsonObject)) { 
+      			jsonDataHTML += "<div class='vRow'>"; //begin row
+      			jsonDataHTML += "<div class='vCol vCol1'>"; //begin col1
+      			jsonDataHTML += "<input class='key' value='"+ key +"'>";
+      			jsonDataHTML += "</div>"; //end col1
+      			jsonDataHTML += "<div class='vCol vCol2'>"; //begin col2
+      			jsonDataHTML += "<input class='value' value='"+ value +"'>";
+      			jsonDataHTML += "</div>"; //end col2
+      			jsonDataHTML += "<div class='vCol vCol3'>";
+      			//from this, get the parent (row) and do element.remove()
+      			//once it is removed, re saving will save the json without this row
+      			jsonDataHTML += "<div class='vDeleteButton' onclick='vDeleteRow(this);'>Delete</div>";
+      			jsonDataHTML += "</div>";
+      			jsonDataHTML += "</div>"; //end row
+    		}
+	
+		console.log("DEBUG NOAH");
+
+		// add on a hidden input which have the filename
+    		jsonDataHTML += "<input class='filename' type='hidden' value='"+filename+"'>";
+    		
+		console.log(jsonDataHTML);
+
+		vHTML("vMainAccordion", "vConfigEditBlock", { "editor":jsonDataHTML });
+
+  	});
+}
+
+//delete a row
+function vDeleteRow(vDeleteButton){
+	//vDeleteButton > vCol > vRow
+	jQuery(vDeleteButton).parent(".vCol").parent(".vRow").remove(); //remove the row the user wants to delete
+}
+
+function vAddRow(){
+			  
+	var newRowHTML = "";
+			  
+	newRowHTML += "<div class='vRow'>"; //begin row
+	newRowHTML += "<div class='vCol vCol1'>"; //begin col1
+	newRowHTML += "<input class='key' value=''>";
+	newRowHTML += "</div>"; //end col1
+	newRowHTML += "<div class='vCol vCol2'>"; //begin col2
+	newRowHTML += "<input class='value' value=''>";
+	newRowHTML += "</div>"; //end col2
+	newRowHTML += "<div class='vCol vCol3'>";
+	//from this, get the parent (row) and do element.remove()
+	//once it is removed, re saving will save the json without this row
+	newRowHTML += "<div class='vDeleteButton' onclick='vDeleteRow(this);'>Delete</div>";
+	newRowHTML += "</div>";
+	newRowHTML += "</div>";
+			  
+	jQuery("#json-content").append(newRowHTML);		
+			  
+}
+
+//save the data
+function vSaveJSONData(){
+	var JSONObject = {};
+	jQuery('.vRow').each(function() {
+		var key = jQuery(this).children(".vCol1").children(".key").val();
+		var value = jQuery(this).children(".vCol2").children(".value").val();
+		JSONObject[key] = value;
+		console.log(key + ", " + value);
+	});
+	console.log(JSONObject);
+	var filename = jQuery(".filename").val();
+	console.log(filename);
+	var JSONString = JSON.stringify(JSONObject);
+	console.log("filename: " + filename);
+	console.log(JSONString);
+	jQuery.post("https://www.ocavu.net/lu/org/saveJson.php",
+	{
+		data: JSONString,
+		file: filename
+	},
+	function(data, status){
+		alert("saved");
+	});
+}
+
+
+//************************** GLOBE FUNCTIONS *******************************
+
+//gets the data to populate the globe going back 24 hours
+function getGlobeData(){
+
+	console.log("get globe data");
+
+	//24 hours back
+	var hours = 24;
+
+	//get the org
+	var org = document.getElementById("inputOrg").value;
+
+	//if the dropdown hasnt been init set it to default
+	if(org.length < 1){
+		org = "ocavu.live";
+	}
+
+	//call the api
+	jQuery.post('https://www.ocavu.net/gem/', {org:org, time:hours}, function(response){
+										
+		//get the data from the api
+		var vUserData = JSON.parse(response);
+
+		//organize the data into globe.gl format
+		var globeData = vOrganizeGlobeData(vUserData);
+
+		//draw the globe
+		plotGlobeData(globeData);
+	});
+
+}
+
+//organizes the user data into location_radius -> views,dau
+function vOrganizeGlobeData(data, refresh=false){
+
+		//store the globe data
+		var globeData = {};
+
+		//==== organizing the globe data ====
+
+		//loop through each csv line 
+		for(i = 0; i < data.length; i++){
+								
+			//===== Globe Data Handling  ======
+										
+			//get what type of data it is (dau or view)
+			var type = data[i]["name"];
+										
+			//get the original coordinates
+			var origLatitude = data[i]["lat"];
+			var origLongitude = data[i]["long"];
+
+			//keep views where they are, offset the dau lines so they don't overlap
+
+			var newLoc = roundLocation(parseFloat(origLatitude), parseFloat(origLongitude));		
+										
+			//set the rounded coordinate as a key
+			var key = newLoc["latitude"] + "," + newLoc["longitude"]; // key = lat,long
+								
+			//init if necessary
+			if(globeData[key] == undefined){
+				globeData[key] = {};
+				globeData[key]["dau"] = 0;
+				globeData[key]["view"] = 0;
+			}
+										
+			//increment either the dau or view count
+			globeData[key][type]++;
+
+		}
+
+		return globeData;
+
+}
+
+var dataScale = 0.1;
+
+var vGem = {};
+
+//plot the organized globe data
+function plotGlobeData(data, refresh=false){
+
+	//store the array of all the lines
+	var globeData = [];
+
+	//store the labels
+	var labelsData = [];
+
+	//loop through each coordinate and create the line for the dau and view
+	var coordinates = Object.keys(data);
+
+	for(i = 0; i < coordinates.length; i++){
+
+		var coordinate = coordinates[i];
+
+		//get the lat and long
+		var location = coordinate.split(",");
+		var latitude = parseFloat(location[0]);
+		var longitude = parseFloat(location[1]);
+
+		//dau - BLUE
+		var dauCount = data[coordinate]["dau"];
+
+		//view - RED
+		var viewCount = data[coordinate]["view"];
+
+		//lines
+										
+		console.log(dataOffset);
+										
+		var dauLine = {};
+		dauLine["lat"] = latitude;
+		dauLine["lng"] = longitude + dataOffset;
+		dauLine["size"] = Math.log10(dauCount) * dataScale;
+		dauLine["color"] = "blue"; 
+
+		var viewLine = {};
+		viewLine["lat"] = latitude;
+		viewLine["lng"] = longitude; //offset
+		viewLine["size"] = Math.log10(viewCount) * dataScale;
+		viewLine["color"] = "red";
+
+		globeData.push(dauLine);
+		globeData.push(viewLine);
+
+		labelsData.push({latitude:latitude, longitude,longitude, name:"(" + viewCount + "," + dauCount + ")"});
+
+	}
+
+	//if initializing the globe
+	if(!refresh){
+								
+	vGem = Globe()
+		.globeImageUrl('//unpkg.com/three-globe/example/img/earth-night.jpg')
+		.pointOfView({ lat: 39.6, lng: -98.5, altitude: 2 }, 4)
+		.pointsData(globeData)
+		.pointAltitude('size')
+		.pointRadius(0.16)
+		.pointColor('color')
+		.labelsData(labelsData)
+		.labelLat(function(d){ return d.latitude - 0.15 })
+		.labelLng(function(d){ return d.longitude })
+		.labelText(d => d.name)
+		.labelSize(0.25)
+		.labelDotRadius(0)
+		.labelColor(() => 'white')
+		.labelResolution(2)
+		(document.getElementById('vGlobe'));
+
+		vGem.pointOfView({ lat: 39.6, lng: -98.5, altitude: 2 }, 1000);
+
+	} else {
+		vGem.pointsData(globeData);
+		vGem.labelsData(labelsData);
+	}
+}
+
+//data offset
+var dataOffset = 0.72289 * 0.5;
+
+//rounds lat and long to a radius - returns the rounded coordinates
+function roundLocation(latitude, longitude, offset=null){
+	
+	//50 miles, 0.72289 = 50 miles
+	var Grid = 0.72289 * 2;
+
+	if(latitude < 0){
+		latitude  -= Grid / 2; 
+	} else {
+		latitude += Grid /2;
+	}
+
+	if(longitude < 0){
+		longitude -= Grid / 2;
+	} else {
+		longitude += Grid / 2;
+	}
+
+	latitude = Math.trunc(latitude / Grid);
+	longitude = Math.trunc(longitude / Grid);
+
+	latitude *= Grid;
+	longitude *= Grid;
+
+	//offset by the set amount
+	if(offset){
+		longitude += offset;
+	}
+
+
+	var location = {};
+	location["latitude"] = latitude;
+	location["longitude"] = longitude;
+
+	//return the rounded coordinates
+	return location;
+
+}
+
+//********************************* CHART FUNCTIONS **********************************
+	
+// updated: now I will call the api twice
+// 1) to get the data for 30 days for the chart
+// 2) to get the data for the past 24 hours for the globe
+
+//gets the data to populate the chart going back 30 days
+function getChartData(){
+
+	//30 days back
+	var hours = 720; //30 * 24
+
+	//get the org
+	var org = document.getElementById("inputOrg").value;
+
+	//if the dropdown hasnt been init set it to default
+	if(org.length < 1){
+		org = "ocavu.live";
+	}
+								
+	console.log("getChartData(): " + hours + ", " + org);
+
+	//call the api
+	jQuery.post('https://www.ocavu.net/gem/', {org:org, time:hours}, function(response){
+										
+		//get the data from the api
+		var vUserData = JSON.parse(response);
+
+		console.log("getChartData()");
+		console.log(vUserData);
+
+		//organize the data into graphable format
+		var graphData = vOrganizeGraphData(vUserData);
+										
+		//graph the data
+		vGraphData(graphData);
+	});
+}
+
+//organizes the data from the gem api into type->date->count format and returns it
+function vOrganizeGraphData(data){
+								
+	//store the google graph data
+	var graphData = {};
+	graphData["dau"] = {};
+	graphData["view"] = {};
+
+	//loop through an initialize the last 30 days to be 0
+	//i.e. graphData["dau"]["2022-07-01"] = 0, ...
+	var today = new Date();
+	
+	var dd = String(today.getDate()).padStart(2, '0');
+	var mm = String(today.getMonth() + 1).padStart(2, '0'); //January is 0!
+	var yyyy = today.getFullYear();
+	var todayFormatted = yyyy + "-" + mm + "-" + dd;
+
+	var priorDate = new Date(new Date().setDate(today.getDate() - 30));	 
+										
+	for(i = 0; i < 30; i++){
+		var dateKey = priorDate.toISOString().slice(0,10);
+		graphData["dau"][dateKey] = 0;
+		graphData["view"][dateKey] = 0;
+		priorDate.setDate(priorDate.getDate() + 1); //add 1 day to the date	 
+	}					   
+
+	//loop through each csv line 
+	for(i = 0; i < data.length; i++){
+								
+		//===== Graph Data Handling =====
+
+		//get what type of data it is (dau or view)
+		var type = data[i]["name"];
+
+		//get the date in the format: year-month-day
+		var logTime = data[i]["time"];
+
+		if(logTime == undefined){
+			continue;
+		}
+
+		var logDate = logTime.substring(0, 10);
+
+		if(logDate == todayFormatted){
+			continue;
+		}
+
+		//init
+		if(graphData[type][logDate] == undefined){
+			graphData[type][logDate] = 0;
+		}
+
+		//increment the count of either the dau or view
+			graphData[type][logDate]++;
+										
+	}
+
+	return graphData;
+}
+
+//helper function to graph the data
+function vGraphData(graphData){
+	google.charts.load('current', {packages: ['corechart', 'line']});
+	google.charts.setOnLoadCallback(function(){
+		plotGraphData(graphData, "dau", "dauChart");
+		plotGraphData(graphData, "view", "viewsChart");
+	});
+}
+
+//sort an object by key
+function vSort(obj){
+	const sorted = Object.keys(obj)
+	.sort()
+	.reduce((accumulator, key) => {
+		accumulator[key] = obj[key];
+		return accumulator;
+	}, {});
+	return sorted;
+}
+
+//plot the organized graph data
+function plotGraphData(data, dataType, tableId){
+
+	//2 graphs: dau and view
+		
+	//convert to google graph format (array of arrays)
+	var graphData = vSort(data[dataType]);
+	var result = Object.keys(graphData).map((key) => [key, graphData[key]]);
+
+	console.log(result);
+
+	//draw the chart
+
+	var chartData = new google.visualization.DataTable();
+	chartData.addColumn('string', '');
+	chartData.addColumn('number', '');
+
+	chartData.addRows(result);
+
+	var vTitle = "";
+	if(dataType == "dau"){
+		vTitle = "Daily Active Users";
+	} else {
+		vTitle = "Views";
+	}
+
+	var options = {
+		height:200,
+		legend:"none",
+		hAxis: {
+			title: 'Date',
+			textStyle: {color: "#ffffff"},
+			titleTextStyle: {color: "#ffffff"}
+		},
+		vAxis: {
+			title: vTitle,
+			textStyle: {color: "#ffffff"},
+		titleTextStyle: {color: "#ffffff"}
+		},
+		colors: ["blue"],
+		lineWidth: 3,   
+		backgroundColor: "#000011",
+		textColor: "#ffffff"
+	};
+
+	var chart = new google.visualization.LineChart(document.getElementById(tableId));
+	chart.draw(chartData, options);
+
+}
+
+</script>
